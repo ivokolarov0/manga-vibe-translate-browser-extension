@@ -1,0 +1,7 @@
+node_modules/
+dist/
+# the AMO key for sign.mjs (.env.example is the template)
+.env
+web-ext-artifacts/
+*.zip
+*.xpi

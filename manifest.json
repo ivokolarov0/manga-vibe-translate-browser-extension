@@ -1,0 +1,61 @@
+{
+  "manifest_version": 2,
+  "name": "Manga Translate",
+  "version": "0.3.1",
+  "description": "English over Japanese manga images on the sites you choose. The text is found, read and translated by models on your own PC.",
+  "browser_specific_settings": {
+    "gecko": {
+      "id": "manga-translate@ivokolarov0",
+      "strict_min_version": "140.0",
+      "data_collection_permissions": { "required": ["none"] }
+    },
+    "gecko_android": {
+      "strict_min_version": "142.0"
+    }
+  },
+  "icons": {
+    "48": "icons/icon.svg",
+    "96": "icons/icon.svg"
+  },
+  "permissions": [
+    "storage",
+    "unlimitedStorage",
+    "webRequest",
+    "webRequestBlocking",
+    "<all_urls>"
+  ],
+  "background": {
+    "scripts": ["src/shared.js", "src/background.js"]
+  },
+  "content_scripts": [
+    {
+      "matches": ["<all_urls>"],
+      "js": ["src/shared.js", "src/layout.js", "src/dock.js", "src/editor.js", "src/content.js"],
+      "css": ["src/overlay.css"],
+      "run_at": "document_idle"
+    }
+  ],
+  "browser_action": {
+    "default_title": "Manga Translate",
+    "default_popup": "src/popup.html",
+    "default_icon": "icons/icon.svg"
+  },
+  "options_ui": {
+    "page": "src/options.html",
+    "open_in_tab": true
+  },
+  "commands": {
+    "toggle-overlay": {
+      "suggested_key": { "default": "Alt+Shift+T" },
+      "description": "Show or hide the English boxes on this page"
+    },
+    "toggle-pause": {
+      "suggested_key": { "default": "Alt+Shift+P" },
+      "description": "Pause or resume translating on this tab"
+    },
+    "edit-translation": {
+      "suggested_key": { "default": "Alt+Shift+E" },
+      "description": "Edit the translation of the image on screen"
+    }
+  }
+}

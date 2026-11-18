@@ -1,0 +1,138 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Manga Translate settings</title>
+  <link rel="stylesheet" href="ui.css">
+  <style>
+    main { max-width: 860px; margin: 0 auto; padding: 24px 16px 48px; }
+    .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 0 16px; }
+    .site { display: grid; grid-template-columns: 1fr 1.3fr 1.6fr 90px auto; gap: 8px; align-items: end;
+            padding: 10px 0; border-top: 1px solid var(--line); }
+    .site:first-of-type { border-top: 0; }
+    .site label { margin: 0; }
+    .site .row { flex-wrap: nowrap; padding-bottom: 4px; }
+    @media (max-width: 720px) { .site { grid-template-columns: 1fr 1fr; } }
+    .keys { border-collapse: collapse; font-size: 13px; }
+    .keys td { padding: 4px 14px 4px 0; vertical-align: top; }
+    .keys td:first-child { white-space: nowrap; }
+  </style>
+</head>
+<body>
+<main>
+  <h1>Manga Translate</h1>
+  <p class="muted">English over Japanese manga images, made by the vision server and the translation
+    model on your own PC (the same ones MangaVibe's Manga Translate plugin uses).</p>
+
+  <section class="card">
+    <h2>Your PC</h2>
+    <div class="grid">
+      <label><span>Vision server</span><input data-key="visionUrl" placeholder="http://192.168.1.50:7865">
+        <small>The address <code>uv run manga_vision_server.py</code> prints</small></label>
+      <label><span>LLM server</span><input data-key="llmUrl" placeholder="http://192.168.1.50:11434">
+        <small>Ollama: <code>:11434</code>. LM Studio: <code>:1234</code></small></label>
+      <label><span>Model</span><input data-key="model" placeholder="gemma4">
+        <small><code>gemma4</code> or <code>manga-translate</code></small></label>
+      <label><span>OCR server (optional)</span><input data-key="ocrUrl">
+        <small>Only if the OCR runs somewhere else. Empty: the vision server</small></label>
+    </div>
+    <div class="row">
+      <button class="primary" id="test">Test connection</button>
+    </div>
+    <div class="msg" id="test-msg"></div>
+  </section>
+
+  <section class="card">
+    <h2>Sites</h2>
+    <p class="muted">Where to translate, and which images. The easiest way to add one: open a chapter
+      on the site, click the extension's button and <b>Pick on the page</b>.<br>
+      <b>Pages:</b> a domain like <code>example.com</code> (every page on it), or a pattern like
+      <code>https://example.com/chapter/*</code>. <b>Images:</b> a CSS selector, e.g.
+      <code>#reader img</code>. <b>Min size:</b> smaller images (icons, ads) are skipped.</p>
+    <div id="sites"></div>
+    <div class="row" style="margin-top:10px"><button id="add-site">Add a site</button></div>
+  </section>
+
+  <section class="card">
+    <h2>Translation</h2>
+    <div class="grid">
+      <label><span>Translate into</span><input data-key="target" placeholder="English"></label>
+      <label><span>Images to translate ahead</span><input data-key="ahead" type="number" min="0" max="30">
+        <small>After the ones on screen, so scrolling doesn't wait</small></label>
+      <label><span>Bubble detection</span>
+        <select data-key="threshold">
+          <option value="normal">Normal</option>
+          <option value="0.2">More (finds faint or odd-shaped bubbles)</option>
+          <option value="0.1">Most (also finds more wrong boxes)</option>
+          <option value="0.45">Fewer (only clear bubbles)</option>
+        </select>
+        <small>Bubbles missed? Try More, then the extension's button → Translate again.
+          Normal: the vision server's own setting (0.3 unless started with <code>--threshold</code>)</small></label>
+    </div>
+    <label><span>Names and terms</span><textarea data-key="glossary" placeholder="先輩=senpai; 春香=Haruka"></textarea>
+      <small>Fixed translations: Japanese = English, separated by <code>;</code></small></label>
+  </section>
+
+  <section class="card">
+    <h2>Look</h2>
+    <div class="grid">
+      <label><span>Box background</span>
+        <select data-key="boxBg">
+          <option value="100">Solid white</option>
+          <option value="75">A little see-through</option>
+          <option value="50">Half see-through</option>
+          <option value="25">Mostly see-through</option>
+          <option value="0">None (only the text)</option>
+        </select></label>
+      <label><span>White outline around the text</span>
+        <select data-key="outline">
+          <option value="off">Off</option>
+          <option value="thin">Thin</option>
+          <option value="thick">Thick</option>
+        </select></label>
+      <label><span>Quick controls on the page</span>
+        <select data-key="dock">
+          <option value="right">At the right edge</option>
+          <option value="left">At the left edge</option>
+          <option value="off">Off (only the keys and the extension's button)</option>
+        </select>
+        <small>A small tab, faded until you point at it: Pause, Hide and Edit. Drag it up or down.</small></label>
+    </div>
+  </section>
+
+  <section class="card">
+    <h2>Keys</h2>
+    <p class="muted">On a page with a site. Change them in Firefox at <code>about:addons</code> → the gear →
+      <b>Manage Extension Shortcuts</b>, in Chrome at <code>chrome://extensions/shortcuts</code>.</p>
+    <table class="keys">
+      <tr><td><b>Alt+Shift+P</b></td><td><b>Pause</b>: translate no more images on this tab (the chapters after it too), e.g. a manga the site already has in English. Again: go on.</td></tr>
+      <tr><td><b>Alt+Shift+T</b></td><td><b>Hide</b> or show the English on this tab</td></tr>
+      <tr><td><b>Alt+Shift+E</b></td><td><b>Edit</b> the translation of the image on screen</td></tr>
+    </table>
+  </section>
+
+  <section class="card">
+    <h2>Saved translations</h2>
+    <p class="muted">Each image is translated once and kept in the browser. <span id="saved"></span></p>
+    <button class="danger" id="forget-all">Delete all saved translations</button>
+  </section>
+</main>
+
+<template id="site-row">
+  <div class="site">
+    <label><span>Name</span><input data-f="name"></label>
+    <label><span>Pages</span><input data-f="match" spellcheck="false"></label>
+    <label><span>Images</span><input data-f="selector" spellcheck="false"></label>
+    <label><span>Min size</span><input data-f="minSize" type="number" min="0"></label>
+    <div class="row">
+      <label class="row" style="margin:0" title="Translate on this site"><input type="checkbox" data-f="enabled"> On</label>
+      <button class="danger" data-delete title="Remove this site">✕</button>
+    </div>
+  </div>
+</template>
+
+<script src="shared.js"></script>
+<script src="options.js"></script>
+</body>
+</html>

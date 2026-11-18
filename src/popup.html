@@ -1,0 +1,62 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Manga Translate</title>
+  <link rel="stylesheet" href="ui.css">
+  <style>
+    body { width: 340px; padding: 12px; }
+    .card { margin-bottom: 10px; }
+    .state { font-weight: 600; }
+  </style>
+</head>
+<body>
+  <div id="setup" class="card" hidden>
+    <p>First set your PC's addresses.</p>
+    <button class="primary" id="open-settings-1">Open settings</button>
+  </div>
+
+  <div id="off" class="card" hidden>
+    <h2>Not on this site yet</h2>
+    <label><span>Site name</span><input id="new-name"></label>
+    <label><span>Pages</span><input id="new-match">
+      <small>A domain (<code>example.com</code>, any page) or a pattern with <code>*</code></small></label>
+    <label><span>Images</span><input id="new-selector" value="img" spellcheck="false">
+      <small>CSS selector of the manga images. <b>Pick on the page</b> finds it for you.</small></label>
+    <div class="row">
+      <button class="primary" id="pick-new">Pick on the page</button>
+      <button id="add">Add with this selector</button>
+    </div>
+  </div>
+
+  <div id="on" class="card" hidden>
+    <h2 id="site-name"></h2>
+    <p class="muted">Images: <code id="site-selector"></code></p>
+    <p class="state" id="counts"></p>
+    <div class="row">
+      <button id="pause">Pause</button>
+      <button id="toggle">Hide English</button>
+      <button id="edit" title="Edit the translation of the image on screen">Edit translation</button>
+    </div>
+    <div class="row" style="margin-top:8px">
+      <button id="pick">Pick images again</button>
+      <button id="again">Translate again</button>
+    </div>
+    <p class="muted" id="keys" style="margin-top:8px"></p>
+    <label class="row" style="margin-top:10px"><input type="checkbox" id="enabled"> Translate on this site</label>
+  </div>
+
+  <div id="restricted" class="card" hidden>
+    <p>The extension can't work on this page (a browser page, or the page was open before the extension was installed: reload it).</p>
+  </div>
+
+  <div class="row">
+    <button id="open-settings">Settings</button>
+    <span class="muted" id="queue"></span>
+  </div>
+  <div class="msg" id="msg"></div>
+
+  <script src="shared.js"></script>
+  <script src="popup.js"></script>
+</body>
+</html>

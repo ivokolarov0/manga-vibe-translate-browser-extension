@@ -1,0 +1,82 @@
+:root {
+  --bg: #f6f6f8;
+  --card: #fff;
+  --text: #1b1c20;
+  --muted: #666a75;
+  --line: #dcdde2;
+  --field: #fff;
+  --accent: #d92a61;
+  --accent-text: #fff;
+  --ok: #1d7a46;
+  --bad: #b3261e;
+  color-scheme: light;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #14151a;
+    --card: #1d1e24;
+    --text: #e6e7ea;
+    --muted: #9a9ca6;
+    --line: #34363f;
+    --field: #111216;
+    --accent: #e8336b;
+    --ok: #5fcf8e;
+    --bad: #ff8a80;
+    color-scheme: dark;
+  }
+}
+
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--text);
+  font: 14px/1.45 system-ui, sans-serif;
+}
+
+h1, h2 { margin: 0 0 8px; line-height: 1.2; }
+h1 { font-size: 20px; }
+h2 { font-size: 15px; }
+p { margin: 0 0 8px; }
+.muted { color: var(--muted); font-size: 13px; }
+code { font: 12.5px ui-monospace, Consolas, monospace; }
+
+label { display: block; margin: 0 0 10px; }
+label > span { display: block; margin-bottom: 3px; font-weight: 600; font-size: 13px; }
+label > small { display: block; margin-top: 3px; color: var(--muted); font-size: 12px; }
+
+input, select, textarea {
+  width: 100%;
+  padding: 6px 8px;
+  background: var(--field);
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  color: var(--text);
+  font: inherit;
+}
+
+input[type="checkbox"] { width: auto; }
+textarea { min-height: 56px; resize: vertical; }
+
+button {
+  padding: 6px 12px;
+  background: transparent;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  color: var(--text);
+  font: inherit;
+  cursor: pointer;
+}
+
+button:hover { border-color: var(--muted); }
+button.primary { background: var(--accent); border-color: var(--accent); color: var(--accent-text); }
+button.danger { color: var(--bad); }
+button:disabled { opacity: 0.5; cursor: default; }
+
+.row { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.card { padding: 14px; margin-bottom: 14px; background: var(--card); border: 1px solid var(--line); border-radius: 10px; }
+.msg { min-height: 1.4em; margin-top: 8px; font-size: 13px; }
+.msg.ok { color: var(--ok); }
+.msg.bad { color: var(--bad); }
