@@ -234,6 +234,16 @@ builds the Chrome zip, and creates the release. It can also be started by hand: 
 Run workflow** releases the version in `manifest.json`.
 
 If the repository is public, so are its releases: anyone can download the signed `.xpi` from there.
+
+### Updates in Firefox
+
+From version 0.3.3 on, Firefox updates the extension from this repository's releases: each release
+has an `updates.json` next to the `.xpi`, and the extension's `update_url` points to the newest
+release's one. Firefox checks about once a day; right after a release, `about:addons` → the gear →
+**Check for Updates** installs it at once. Your settings and saved translations stay.
+
+This needs the repository to be public (Firefox downloads without a GitHub login). Chrome can't do
+this for an unpacked extension: there, unzip the new version and click the reload arrow on its card.
 | `src/options.*`, `src/popup.*` | the settings page and the toolbar button |
 
 The translation prompt, the box layout and the text fitting are the same as in the MangaVibe plugin
