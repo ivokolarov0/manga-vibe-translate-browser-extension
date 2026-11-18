@@ -4,14 +4,16 @@
 //   node sign.mjs           builds dist/firefox and signs it
 //   node sign.mjs --bump    first raises the version (0.3.1 -> 0.3.2): Mozilla signs each version once
 //
-// The key is read from .env (in .gitignore, never committed); .env.example shows what goes in it.
+// The key: AMO_API_KEY and AMO_API_SECRET, from the environment (GitHub's secrets, in the release
+// workflow) or from .env (in .gitignore, never committed; .env.example shows what goes in it).
 // Needs Node.js 20.12 or newer.
 
-import { existsSync, readFileSync, writeFileSync } from "node:fs";
+import { existsSync } from "node:fs";
 import { spawnSync } from "node:child_process";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { build } from "./build.mjs";
+import { setVersion } from "./version.mjs";
 
 const root = dirname(fileURLToPath(import.meta.url));
 
@@ -20,34 +22,23 @@ function fail(message) {
   process.exit(1);
 }
 
-/* --- the key, from .env ------------------------------------------------------------------------- */
+/* --- the key: the environment, or .env (which doesn't override what the environment has) ----------- */
 
 const envFile = join(root, ".env");
-if (!existsSync(envFile)) {
-  fail("No .env file. Copy .env.example to .env and put your AMO key in it:\n"
-    + "  https://addons.mozilla.org/developers/addon/api/key/");
-}
-process.loadEnvFile(envFile);
+if (existsSync(envFile)) process.loadEnvFile(envFile);
 const key = (process.env.AMO_API_KEY || "").trim();
 const secret = (process.env.AMO_API_SECRET || "").trim();
 if (!key || !secret || key === "user:12345678:123") {
-  fail("Put your AMO key in .env: AMO_API_KEY (the JWT issuer, like user:12345678:123) and "
-    + "AMO_API_SECRET (the JWT secret).\n  https://addons.mozilla.org/developers/addon/api/key/");
+  fail("No AMO key. Copy .env.example to .env and fill in AMO_API_KEY (the JWT issuer, like "
+    + "user:12345678:123) and AMO_API_SECRET (the JWT secret); on GitHub they are repository secrets "
+    + "of the same names.\n  https://addons.mozilla.org/developers/addon/api/key/");
 }
 
-/* --- --bump: the next version, in both manifests (only the number is changed in the files) -------- */
+/* --- --bump: the next version first (Mozilla signs each version once) ------------------------------ */
 
 if (process.argv.includes("--bump")) {
-  const current = JSON.parse(readFileSync(join(root, "manifest.json"), "utf8")).version;
-  const parts = current.split(".").map(Number);
-  parts[parts.length - 1] += 1;
-  const next = parts.join(".");
-  for (const file of ["manifest.json", "manifest.chrome.json"]) {
-    const path = join(root, file);
-    const text = readFileSync(path, "utf8");
-    writeFileSync(path, text.replace(/("version":\s*")[^"]*(")/, `$1${next}$2`));
-  }
-  console.log(`version ${current} -> ${next}`);
+  const { from, to } = setVersion("patch");
+  console.log(`version ${from} -> ${to}`);
 }
 
 /* --- build and sign -------------------------------------------------------------------------------- */

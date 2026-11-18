@@ -16,9 +16,15 @@ var MT = (() => {
     threshold: "normal",    // bubble detection: "normal" (the vision server's own) or 0.05..0.95
     boxBg: 100,             // % background of the English boxes
     outline: "off",         // off | thin | thick
-    dock: "right",          // the quick controls on the page: right | left | off
-    dockY: 50,              // their place, in % of the window's height
+    keys: {},               // the keys on a site's pages, e.g. { pause: "P", hide: "Shift+H" }; none by default
   };
+
+  /* What a key can do on a site's pages. A site can have its own key for each ("none": off there). */
+  const KEY_ACTIONS = [
+    ["pause", "Pause", "Pause or resume translating on this tab"],
+    ["hide", "Hide", "Hide or show the English on this tab"],
+    ["edit", "Edit", "Edit the translation of the image on screen"],
+  ];
 
   const SITE_DEFAULTS = { name: "", match: "", selector: "img", minSize: 300, enabled: true };
 
@@ -61,6 +67,28 @@ var MT = (() => {
     return value;
   }
 
+  /* A key press as a name: "P", "Shift+H", "Ctrl+Alt+F2", or "" for a modifier alone (or Esc, Tab:
+     those keep their usual job). Letters and digits are the key's place on the keyboard, so "P" is
+     the same key with a Cyrillic or any other layout. */
+  function comboOf(e) {
+    if (/^(Shift|Control|Alt|AltGraph|Meta|OS|CapsLock|NumLock|Escape|Tab|Dead|Unidentified|Process)$/.test(e.key)) return "";
+    const code = e.code || "";
+    let key = code.match(/^Key([A-Z])$/)?.[1] || code.match(/^Digit(\d)$/)?.[1];
+    if (!key) key = e.key === " " ? "Space" : e.key.length === 1 ? e.key.toUpperCase() : e.key;
+    if (!key) return "";
+    return [e.ctrlKey && "Ctrl", e.altKey && "Alt", e.shiftKey && "Shift", e.metaKey && "Meta", key].filter(Boolean).join("+");
+  }
+
+  /* The keys that work on a site's pages: the site's own where it has one, else the general ones. */
+  function keysFor(settings, site) {
+    const out = {};
+    for (const [action] of KEY_ACTIONS) {
+      const own = site?.keys?.[action];
+      out[action] = own === "none" ? "" : own || settings?.keys?.[action] || "";
+    }
+    return out;
+  }
+
   /* Bytes go between the page and the background as base64: Chrome's messages are JSON, where an
      ArrayBuffer arrives as {} (Firefox could send it as it is). */
   function toBase64(buffer) {
@@ -68,6 +96,22 @@ var MT = (() => {
     let s = "";
     for (let i = 0; i < bytes.length; i += 0x8000) s += String.fromCharCode(...bytes.subarray(i, i + 0x8000));
     return btoa(s);
+  }
+
+  /* A Blob as base64, read with a FileReader. Not through blob.arrayBuffer(): in a Firefox content
+     script, a Blob made by the page's DOM (canvas.toBlob) gives an ArrayBuffer that belongs to the page,
+     which the extension's typed arrays may not read ("Permission denied to access property
+     'constructor'"). */
+  function blobToBase64(blob) {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => {
+        const url = String(reader.result);  // data:image/jpeg;base64,....
+        resolve(url.slice(url.indexOf(",") + 1));
+      };
+      reader.onerror = () => reject(reader.error || new Error("Couldn't read the image"));
+      reader.readAsDataURL(blob);
+    });
   }
 
   function fromBase64(text) {
@@ -120,6 +164,6 @@ var MT = (() => {
     shapes.map(([tag, attrs]) => h(tag, attrs)));
   }
 
-  return { DEFAULTS, SITE_DEFAULTS, withDefaults, newSite, matchUrl, findSite, cleanUrl, toBase64, fromBase64,
-    onMessage, h, icon };
+  return { DEFAULTS, SITE_DEFAULTS, KEY_ACTIONS, withDefaults, newSite, matchUrl, findSite, cleanUrl, comboOf, keysFor,
+    toBase64, blobToBase64, fromBase64, onMessage, h, icon };
 })();

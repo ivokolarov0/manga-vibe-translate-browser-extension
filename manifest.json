@@ -1,7 +1,7 @@
 {
   "manifest_version": 2,
   "name": "Manga Translate",
-  "version": "0.3.1",
+  "version": "0.3.2",
   "description": "English over Japanese manga images on the sites you choose. The text is found, read and translated by models on your own PC.",
   "browser_specific_settings": {
     "gecko": {
@@ -30,7 +30,7 @@
   "content_scripts": [
     {
       "matches": ["<all_urls>"],
-      "js": ["src/shared.js", "src/layout.js", "src/dock.js", "src/editor.js", "src/content.js"],
+      "js": ["src/shared.js", "src/layout.js", "src/editor.js", "src/content.js"],
       "css": ["src/overlay.css"],
       "run_at": "document_idle"
     }
@@ -43,19 +43,5 @@
   "options_ui": {
     "page": "src/options.html",
     "open_in_tab": true
-  },
-  "commands": {
-    "toggle-overlay": {
-      "suggested_key": { "default": "Alt+Shift+T" },
-      "description": "Show or hide the English boxes on this page"
-    },
-    "toggle-pause": {
-      "suggested_key": { "default": "Alt+Shift+P" },
-      "description": "Pause or resume translating on this tab"
-    },
-    "edit-translation": {
-      "suggested_key": { "default": "Alt+Shift+E" },
-      "description": "Edit the translation of the image on screen"
-    }
   }
 }

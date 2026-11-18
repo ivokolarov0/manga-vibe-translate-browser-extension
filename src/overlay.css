@@ -46,8 +46,8 @@ mt-text {
   paint-order: stroke fill !important;
 }
 
-/* the quick controls and the editor: their insides are in a shadow root, out of the site's reach */
-mt-dock, mt-editor {
+/* the editor: its insides are in a shadow root, out of the site's reach */
+mt-editor {
   all: initial !important;
   display: block !important;
 }
@@ -58,7 +58,7 @@ mt-editor {
   z-index: 2147483600 !important;
 }
 
-mt-dock[hidden], mt-editor[hidden] {
+mt-editor[hidden] {
   display: none !important;
 }
 

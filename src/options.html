@@ -14,9 +14,18 @@
     .site label { margin: 0; }
     .site .row { flex-wrap: nowrap; padding-bottom: 4px; }
     @media (max-width: 720px) { .site { grid-template-columns: 1fr 1fr; } }
-    .keys { border-collapse: collapse; font-size: 13px; }
-    .keys td { padding: 4px 14px 4px 0; vertical-align: top; }
-    .keys td:first-child { white-space: nowrap; }
+    [hidden] { display: none !important; }
+    /* a key box: click it, press the key */
+    .key { display: flex; gap: 6px; }
+    .key input { cursor: pointer; font-weight: 600; caret-color: transparent; }
+    .key input:focus { border-color: var(--accent); outline: none; }
+    .key button { padding: 4px 10px; }
+    .key select { width: auto; }
+    .warn { color: var(--bad); }
+    /* a site's own keys, under its row */
+    .site-keys { grid-column: 1 / -1; font-size: 13px; }
+    .site-keys summary { cursor: pointer; color: var(--muted); }
+    .site-keys .grid { margin-top: 8px; }
   </style>
 </head>
 <body>
@@ -91,25 +100,18 @@
           <option value="thin">Thin</option>
           <option value="thick">Thick</option>
         </select></label>
-      <label><span>Quick controls on the page</span>
-        <select data-key="dock">
-          <option value="right">At the right edge</option>
-          <option value="left">At the left edge</option>
-          <option value="off">Off (only the keys and the extension's button)</option>
-        </select>
-        <small>A small tab, faded until you point at it: Pause, Hide and Edit. Drag it up or down.</small></label>
     </div>
   </section>
 
   <section class="card">
     <h2>Keys</h2>
-    <p class="muted">On a page with a site. Change them in Firefox at <code>about:addons</code> → the gear →
-      <b>Manage Extension Shortcuts</b>, in Chrome at <code>chrome://extensions/shortcuts</code>.</p>
-    <table class="keys">
-      <tr><td><b>Alt+Shift+P</b></td><td><b>Pause</b>: translate no more images on this tab (the chapters after it too), e.g. a manga the site already has in English. Again: go on.</td></tr>
-      <tr><td><b>Alt+Shift+T</b></td><td><b>Hide</b> or show the English on this tab</td></tr>
-      <tr><td><b>Alt+Shift+E</b></td><td><b>Edit</b> the translation of the image on screen</td></tr>
-    </table>
+    <p class="muted">Keys for Pause, Hide and Edit (also in the extension's button). They only work on the pages of your sites, and not
+      while you type in a text field. Click a box and press the key (or a combination, like
+      <code>Shift+P</code>); <b>✕</b> removes it. A key that does nothing is taken by the browser: pick
+      another. Clashes with one site's own keys? Give that site other keys under <b>Sites</b> → <b>Keys</b>.</p>
+    <div class="grid" id="keys"></div>
+    <p class="muted"><b>Pause</b> translates no more images on this tab (the chapters after it too), e.g. a manga
+      the site already has in English. Press it again to go on.</p>
   </section>
 
   <section class="card">
@@ -129,6 +131,7 @@
       <label class="row" style="margin:0" title="Translate on this site"><input type="checkbox" data-f="enabled"> On</label>
       <button class="danger" data-delete title="Remove this site">✕</button>
     </div>
+    <details class="site-keys"><summary data-keys-summary>Keys</summary><div class="grid" data-keys></div></details>
   </div>
 </template>
 

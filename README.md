@@ -43,7 +43,7 @@ private ("unlisted": it isn't published, only you can download it). It needs
    `web-ext-artifacts/`. Open that file in Firefox to install it.
 
 Mozilla signs each version only once: for the next one, run `node sign.mjs --bump`, which raises the
-version first (0.3.1 → 0.3.2). Signing usually takes a few minutes; the script waits up to an hour.
+version first (0.3.1 → 0.3.2). Or let GitHub do it: see [Releases](#releases). Signing usually takes a few minutes; the script waits up to an hour.
 If it stops waiting, Mozilla carries on, and the `.xpi` can be downloaded later from the
 [Developer Hub](https://addons.mozilla.org/developers/addons) → **Manage Status & Versions**.
 
@@ -63,8 +63,8 @@ Chrome needs its own version of the extension (Manifest V3); the code is the sam
 It stays installed. After you download a newer version, run step 2 again and click the reload arrow
 on the extension's card.
 
-In Chrome, the keys are changed at `chrome://extensions/shortcuts`, and the extension's settings are
-under its card → **Details** → **Extension options**. Everything else works as described below.
+In Chrome, the extension's settings are under its card → **Details** → **Extension options**.
+Everything else works as described below.
 
 ## Set it up
 
@@ -100,32 +100,39 @@ You can also add and change sites by hand in **Settings → Sites**. Each site h
 | **Images** | which images: a CSS selector. A selector for a container means all the images inside it | `#reader img` or `.page-container` |
 | **Min size** | smaller images (icons, ads, thumbnails) are skipped, in pixels | `300` |
 | **On** | switch the site off without deleting it | |
+| **Keys** | the [keys](#keys) on this site: as in **Settings → Keys**, off, or keys of its own | |
 
 ## Reading
 
-### Pause and hide: the quick controls
+### Pause, Hide and Edit
 
-On a page with a site there's a small tab at the right edge of the window. It stays faded until
-you point at it (or tap it), so it doesn't cover the manga. It opens into three buttons:
+Three things you can do on a site's pages, with [keys](#keys) of your own or from the extension's
+button:
 
-| Button | Key | What it does |
-|---|---|---|
-| **Pause** | **Alt+Shift+P** | Translates no more images on this tab: images waiting in the queue are dropped, and the chapters you open next in this tab stay paused too. Press it again to go on. Translations saved earlier still show. |
-| **Hide** | **Alt+Shift+T** | Hides the English on this tab (press again to show it). |
-| **Edit** | **Alt+Shift+E** | Opens [the editor](#fix-an-image-yourself-the-editor) for the image in the middle of the window. |
+| | What it does |
+|---|---|
+| **Pause** | Translates no more images on this tab: images waiting in the queue are dropped, and the chapters you open next in this tab stay paused too. Press it again to go on. Translations saved earlier still show. |
+| **Hide** | Hides the English on this tab (press again to show it). |
+| **Edit** | Opens [the editor](#fix-an-image-yourself-the-editor) for the image in the middle of the window. |
 
 **For a manga the site already has in English:** press **Pause**, and **Hide** if it had already
 translated some pages. Both stay on for that tab until you switch them back, and other tabs aren't
-affected. While paused or hidden, the tab shows a pause or crossed-out eye, so you can see why no
-English shows.
+affected. A short message at the bottom right says what you just switched.
 
-Drag the tab up or down to move it. **Settings → Look → Quick controls** puts it on the left edge
-or switches it off. The same three buttons are in the extension's button, and you can change the
-keys in `about:addons` → the gear → **Manage Extension Shortcuts** (Chrome: `chrome://extensions/shortcuts`).
+### Keys
+
+No keys are set at first, so nothing clashes with the browser or a site until you choose. In **Settings → Keys**, click a box and press the key you want
+(one key like `P`, or a combination like `Shift+P`); **✕** removes it.
+
+- They only work on the pages of your sites, and not while you type in a text field.
+- Letters are the key's place on the keyboard, so they also work with another keyboard layout.
+- A key that does nothing is taken by the browser itself: pick another.
+- **A site uses the same key itself?** Under **Settings → Sites**, open that site's **Keys**. For each
+  one choose **As in Keys** (the general key), **Off on this site**, or **Its own key**.
 
 ### Fix an image yourself: the editor
 
-A translation is wrong, a bubble was missed, or a box sits badly? Press **Edit** (or **Alt+Shift+E**)
+A translation is wrong, a bubble was missed, or a box sits badly? Press **Edit** (or [its key](#keys))
 while the image is on screen. It opens in the editor, the same one as in the MangaVibe plugin: the
 image with its boxes on one side, the texts on the other.
 
@@ -153,7 +160,7 @@ and redoes only the others.
 
 ### More
 
-- **Show or hide the English:** **Alt+Shift+T**, the quick controls, or the extension's button →
+- **Show or hide the English:** [its key](#keys), or the extension's button →
   **Hide English**. Handy to see the art under a box.
 - **See the Japanese:** in **Settings → Look**, pick a see-through **Box background**, and turn on
   the **White outline** to keep the English readable over the art.
@@ -199,10 +206,34 @@ of normal images; boxes are only drawn over `<img>` elements.
 | `src/background.js` | the queue: sends pieces to the vision server (`/page`) and the text to the LLM (`/v1/chat/completions`) at the same time, and saves the results |
 | `src/layout.js` | grows each text box to fit English without covering its neighbours (same rules as the plugin), and the box styles |
 | `src/editor.js` | the editor (the same as the plugin's), drawn over the page in a shadow root |
-| `src/dock.js` | the quick controls at the edge of the window: Pause, Hide, Edit |
 | `manifest.json`, `manifest.chrome.json` | Firefox's (Manifest V2) and Chrome's (Manifest V3); Chrome's background is `src/sw.js`, which loads the same scripts |
 | `build.mjs` | makes `dist/firefox` and `dist/chrome`; Chrome's version number is taken from `manifest.json` |
-| `sign.mjs` | builds and signs the Firefox version with the AMO key from `.env` (see `.env.example`) |
+| `sign.mjs` | builds and signs the Firefox version with the AMO key from `.env` (see `.env.example`) or the environment |
+| `version.mjs` | sets the version in both manifests |
+| `.github/workflows/release.yml` | a release on GitHub: signs the Firefox version and attaches it with the Chrome zip |
+
+## Releases
+
+GitHub can sign and publish a version for you: a release with the signed Firefox `.xpi` and the
+Chrome `.zip`, under **Releases** on the repository's page.
+
+**Once:** in the repository on GitHub, **Settings → Secrets and variables → Actions → New repository
+secret**, add two: `AMO_API_KEY` (the JWT issuer) and `AMO_API_SECRET` (the JWT secret), the same as
+in `.env`. Or, with the [GitHub CLI](https://cli.github.com/), from this folder: `gh secret set -f .env`.
+
+**Each release:**
+
+```
+node version.mjs patch
+git commit -am "Version 0.3.2" && git tag v0.3.2 && git push origin main v0.3.2
+```
+
+The tag starts the workflow (**Actions → Release**): it checks that the tag is the version in
+`manifest.json`, signs the Firefox version with Mozilla (unlisted; it waits up to 45 minutes),
+builds the Chrome zip, and creates the release. It can also be started by hand: **Actions → Release →
+Run workflow** releases the version in `manifest.json`.
+
+If the repository is public, so are its releases: anyone can download the signed `.xpi` from there.
 | `src/options.*`, `src/popup.*` | the settings page and the toolbar button |
 
 The translation prompt, the box layout and the text fitting are the same as in the MangaVibe plugin
