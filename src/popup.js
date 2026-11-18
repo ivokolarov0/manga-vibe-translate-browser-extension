@@ -48,12 +48,9 @@ async function render() {
     : `${info.done} of ${info.images} images translated`
       + (info.working ? ` · ${info.working} working` : "") + (info.failed ? ` · ${info.failed} failed` : "")
       + (info.paused ? " · paused on this tab" : "");
-  if (!$("keys").textContent) {
-    const k = await browser.runtime.sendMessage({ type: "shortcuts" }).catch(() => ({}));
-    const parts = [["toggle-pause", "pause"], ["toggle-overlay", "hide"], ["edit-translation", "edit"]]
-      .filter(([name]) => k?.[name]).map(([name, what]) => `${k[name]} ${what}`);
-    $("keys").textContent = parts.length ? `Keys: ${parts.join(" · ")}` : "";
-  }
+  // the keys on this site (Settings → Keys, or the site's own)
+  const parts = MT.KEY_ACTIONS.filter(([a]) => info.keys?.[a]).map(([a, label]) => `${info.keys[a]} ${label.toLowerCase()}`);
+  $("keys").textContent = parts.length ? `Keys here: ${parts.join(" · ")}` : "No keys set: Settings → Keys";
 
   const s = await browser.runtime.sendMessage({ type: "status" });
   $("queue").textContent = s.offline || (s.waiting ? `Queue: ${s.waiting}` : "");

@@ -1,5 +1,6 @@
 node_modules/
 dist/
+release/
 # the AMO key for sign.mjs (.env.example is the template)
 .env
 web-ext-artifacts/

@@ -402,11 +402,6 @@ async function romaji(texts) {
   }));
 }
 
-async function shortcuts() {
-  const out = {};
-  for (const c of await browser.commands.getAll()) out[c.name] = c.shortcut || "";
-  return out;
-}
 
 async function fetchImage(url) {
   const r = await fetch(url, { credentials: "include" });
@@ -535,7 +530,6 @@ MT.onMessage((msg) => {
       case "readArea": return { src: await readArea(msg.data, msg.box) };
       case "translateOne": return { text: await translateOne(msg.src, msg.background) };
       case "romaji": return { romaji: await romaji(msg.texts || []) };
-      case "shortcuts": return shortcuts();
       case "status": return { waiting: jobs.size, offline, last };
       case "fetchImage": return fetchImage(msg.url);
       case "test": return { message: await testConnection() };
@@ -545,13 +539,4 @@ MT.onMessage((msg) => {
     }
   };
   return answer().catch((e) => ({ error: String(e?.message || e) }));
-});
-
-/* the keyboard shortcuts (about:addons → Manage Extension Shortcuts changes them) */
-const COMMANDS = { "toggle-overlay": "toggle", "toggle-pause": "pause", "edit-translation": "edit" };
-
-browser.commands.onCommand.addListener(async (name) => {
-  if (!COMMANDS[name]) return;
-  const [tab] = await browser.tabs.query({ active: true, currentWindow: true });
-  if (tab) browser.tabs.sendMessage(tab.id, { type: COMMANDS[name] }).catch(() => {});
 });

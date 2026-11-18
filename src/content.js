@@ -23,7 +23,6 @@
   let mo = null, io = null, ro = null, scanTimer = null, placeTimer = null, statusTimer = null;
   let status = null;
   let picker = null;
-  let dock = null;
   const items = new Map();   // <img> -> item
   const onScreen = new Set();
 
@@ -79,9 +78,7 @@
     placeTimer = setInterval(() => {  // layout changes nothing else tells us about
       sweep();
       if (placeAll()) follow();
-      updateDock();
     }, 500);
-    showDock();
     scheduleScan();
   }
 
@@ -98,8 +95,6 @@
     sweep();
     onScreen.clear();
     setStatus("");
-    dock?.remove();
-    dock = null;
   }
 
   /* --- finding the images ------------------------------------------------------------------------- */
@@ -302,7 +297,7 @@
       // (null: no limit. Not Infinity: Chrome's messages are JSON, where it would turn into null anyway)
       const ownTop = i === 0 ? null : (bounds[i - 1][1] - top) / 2;
       const ownBottom = i === bounds.length - 1 ? null : (bottom - top) - (bottom - bounds[i + 1][0]) / 2;
-      tiles.push({ data: MT.toBase64(await blob.arrayBuffer()), y: top, scale, ownTop, ownBottom });
+      tiles.push({ data: await MT.blobToBase64(blob), y: top, scale, ownTop, ownBottom });
     }
     bmp.close?.();
     return { w, h, tiles };
@@ -718,7 +713,7 @@
     g.fillRect(0, 0, canvas.width, canvas.height);
     g.drawImage(bmp, L, T, R - L, B - T, 0, 0, canvas.width, canvas.height);
     const blob = await new Promise((r) => canvas.toBlob(r, "image/jpeg", 0.92));
-    return { data: MT.toBase64(await blob.arrayBuffer()), box: [0, 0, canvas.width, canvas.height] };
+    return { data: await MT.blobToBase64(blob), box: [0, 0, canvas.width, canvas.height] };
   }
 
   /* the background answers {error} when something went wrong: thrown, for the editor to show */
@@ -763,7 +758,6 @@
       if (it.key !== key) return;
       work(it, 0, list[list.indexOf(it) - 1]?.key || it.lastKey, true);
     },
-    closed() { dock?.update({}); },
   };
 
   function openEditor(it = imageOnScreen()) {
@@ -777,7 +771,7 @@
     return true;
   }
 
-  /* --- Pause, Hide and the quick controls ---------------------------------------------------------- */
+  /* --- Pause and Hide (from the keys or the extension's button) ------------------------------------ */
 
   function toggle(on = !shown) {
     shown = on;
@@ -785,7 +779,6 @@
     refitAll();
     if (status) status.hidden = !shown;
     flash(shown ? "English shown" : "English hidden on this tab");
-    updateDock();
   }
 
   function setPaused(on = !paused) {
@@ -797,7 +790,6 @@
       if (keys.length) browser.runtime.sendMessage({ type: "cancel", keys }).catch(() => {});
     }
     flash(paused ? "Translating paused on this tab" : "Translating again");
-    updateDock();
     pump();
   }
 
@@ -814,35 +806,32 @@
     }, 1800);
   }
 
-  function showDock() {
-    if (!site || settings.dock === "off") {
-      dock?.remove();
-      dock = null;
-      return;
-    }
-    if (!dock) {
-      dock = MT.createDock({
-        pause: () => setPaused(),
-        hide: () => toggle(),
-        edit: () => openEditor(),
-        moved: (y) => {
-          settings.dockY = y;
-          browser.storage.local.get("settings").then((got) =>
-            browser.storage.local.set({ settings: { ...MT.withDefaults(got.settings), dockY: y } }));
-        },
-      });
-    }
-    dock.place(settings);
-    updateDock();
+  /* --- the keys set in Settings → Keys (or the site's own): only on a site's pages, never while
+     typing in a field or while the editor is open (it has keys of its own) -------------------------- */
+
+  function typingIn(el) {
+    if (!el || el.nodeType !== 1) return false;
+    if (el.isContentEditable) return true;
+    if (el.tagName === "TEXTAREA" || el.tagName === "SELECT") return true;
+    return el.tagName === "INPUT" && !/^(button|checkbox|radio|range|submit|reset|image|color|file)$/i.test(el.type);
   }
 
-  function updateDock() {
-    if (!dock) return;
-    if (!dock.element.isConnected) document.documentElement.append(dock.element);  // a site that rebuilt the page
-    dock.update({ paused, shown, canEdit: !!imageOnScreen() });
-  }
+  addEventListener("keydown", (e) => {
+    if (!site || e.repeat || e.isComposing || MT.editor.isOpen() || picker) return;
+    if (typingIn(e.composedPath()[0] || e.target)) return;
+    const combo = MT.comboOf(e);
+    if (!combo) return;
+    const keys = MT.keysFor(settings, site);
+    const action = MT.KEY_ACTIONS.map(([a]) => a).find((a) => keys[a] === combo);
+    if (!action) return;
+    e.preventDefault();
+    e.stopImmediatePropagation();  // the site doesn't act on it too
+    if (action === "pause") setPaused();
+    else if (action === "hide") toggle();
+    else openEditor();
+  }, true);
 
-  /* --- messages from the popup and the keyboard shortcuts ------------------------------------------ */
+  /* --- messages from the popup ---------------------------------------------------------------------- */
 
   MT.onMessage((msg) => {
     switch (msg.type) {
@@ -879,6 +868,7 @@
         const its = [...items.values()].filter((it) => it.key);
         return Promise.resolve({
           site, shown, paused,
+          keys: MT.keysFor(settings, site),
           canEdit: !!site && !!imageOnScreen(),
           images: its.length,
           done: its.filter((it) => it.state === "done").length,
@@ -901,7 +891,6 @@
       const old = settings;
       settings = MT.withDefaults(changes.settings.newValue);
       if (old.boxBg !== settings.boxBg || old.outline !== settings.outline) restyleAll();
-      if (site) showDock();
     }
   });
 
