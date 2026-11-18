@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "Manga Translate",
-  "version": "0.3.2",
+  "version": "0.3.3",
   "description": "English over Japanese manga images on the sites you choose. The text is found, read and translated by models on your own PC.",
   "minimum_chrome_version": "116",
   "icons": {

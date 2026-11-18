@@ -26,9 +26,9 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 60
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v5
         with:
           node-version: 22
 
@@ -65,6 +65,27 @@ jobs:
           mkdir -p release
           cp web-ext-artifacts/*.xpi "release/manga-translate-firefox-$VERSION.xpi"
           (cd dist/chrome && zip -qr "../../release/manga-translate-chrome-$VERSION.zip" .)
+
+      # Firefox's updates: the extension's update_url is releases/latest/download/updates.json, so
+      # "Check for Updates" in Firefox finds the newest release's .xpi here (with its checksum)
+      - name: Write updates.json
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+          TAG: ${{ steps.version.outputs.tag }}
+          REPO_URL: ${{ github.server_url }}/${{ github.repository }}
+        run: |
+          xpi="manga-translate-firefox-$VERSION.xpi"
+          hash=$(sha256sum "release/$xpi" | cut -d' ' -f1)
+          node -e '
+            const [id, version, link, hash, min] = process.argv.slice(1);
+            const update = { version, update_link: link, update_hash: "sha256:" + hash,
+              applications: { gecko: { strict_min_version: min } } };
+            require("fs").writeFileSync("release/updates.json",
+              JSON.stringify({ addons: { [id]: { updates: [update] } } }, null, 2) + "\n");
+          ' "$(node -p "require('./manifest.json').browser_specific_settings.gecko.id")" "$VERSION" \
+            "$REPO_URL/releases/download/$TAG/$xpi" "$hash" \
+            "$(node -p "require('./manifest.json').browser_specific_settings.gecko.strict_min_version")"
+          cat release/updates.json
           ls -l release
 
       - name: Create the release
@@ -77,5 +98,5 @@ jobs:
             --title "Manga Translate $VERSION" \
             --target "$GITHUB_SHA" \
             --generate-notes \
-            --notes "**Firefox:** open \`manga-translate-firefox-$VERSION.xpi\` in Firefox (signed by Mozilla).
+            --notes "**Firefox:** open \`manga-translate-firefox-$VERSION.xpi\` in Firefox (signed by Mozilla), or, if you have 0.3.3 or newer, about:addons → gear → **Check for Updates**.
           **Chrome / Edge:** unzip \`manga-translate-chrome-$VERSION.zip\`, then \`chrome://extensions\` → Developer mode → **Load unpacked**."
