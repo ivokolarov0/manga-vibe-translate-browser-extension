@@ -9,7 +9,7 @@
 const DATA_VERSION = 1;
 const OFFLINE_RETRY = 15000;  // ms between tries while the PC can't be reached
 const IMAGE_TRIES = 2;        // an image that fails this often is given up (until the page is reloaded)
-const NOW = 0;                // priority: visible on screen. 1 = ahead
+const NOW = 0;                // priority: visible on screen. 1 = ahead, 2 = on the next page
 
 let settings = { ...MT.DEFAULTS };
 let offline = "";             // why the PC can't be reached, shown on the page
@@ -409,6 +409,15 @@ async function fetchImage(url) {
   return { data: MT.toBase64(await r.arrayBuffer()), type: r.headers.get("Content-Type") || "" };
 }
 
+/* The HTML of the next page, for a page that may not fetch it itself (Chrome: another site's address
+   is refused to a content script). */
+async function fetchPage(url) {
+  if (!/^https?:\/\//i.test(url)) throw new Error("Not a web page");
+  const r = await fetch(url, { credentials: "include" });
+  if (!r.ok) throw new Error(`HTTP ${r.status} for the next page`);
+  return { html: (await r.text()).slice(0, 5_000_000) };
+}
+
 async function testConnection() {
   const vision = MT.cleanUrl(settings.visionUrl);
   if (!vision) return "Set the vision server's address first";
@@ -532,6 +541,7 @@ MT.onMessage((msg) => {
       case "romaji": return { romaji: await romaji(msg.texts || []) };
       case "status": return { waiting: jobs.size, offline, last };
       case "fetchImage": return fetchImage(msg.url);
+      case "fetchPage": return fetchPage(String(msg.url || ""));
       case "test": return { message: await testConnection() };
       case "savedCount": return { count: await savedCount() };
       case "forgetAll": return { count: await forgetAll() };

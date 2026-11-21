@@ -99,10 +99,30 @@ You can also add and change sites by hand in **Settings → Sites**. Each site h
 | **Pages** | where to work: a domain (every page on it and its subdomains), or a pattern where `*` matches anything | `example.com` or `https://example.com/chapter/*` |
 | **Images** | which images: a CSS selector. A selector for a container means all the images inside it | `#reader img` or `.page-container` |
 | **Min size** | smaller images (icons, ads, thumbnails) are skipped, in pixels | `300` |
+| **Next page link** | optional: the link to the next page or chapter, as a CSS selector. See [the next page](#the-next-page-translated-before-you-open-it) | `a.next-chapter` |
 | **On** | switch the site off without deleting it | |
 | **Keys** | the [keys](#keys) on this site: as in **Settings → Keys**, off, or keys of its own | |
 
 ## Reading
+
+### The next page, translated before you open it
+
+On sites where each chapter (or each page) is its own address with a **Next** link, the extension can
+translate the next one while you're still reading this one:
+
+1. Open a chapter, click the extension's button → **Pick next-page link**.
+2. Click the site's link to the next page or chapter. The bar shows where it leads; change the
+   selector if it picked the wrong link, then **Save as the next-page link**.
+
+When you get near the end of a page (the images to translate ahead reach its last image), the next
+page is downloaded in the background, its images are found with the site's **Images** selector and
+translated after the ones on this page. When you open it, they're already there. On a site with one
+image per page, it follows the links further, up to **Images to translate ahead** images (at most 10
+pages). The extension's button shows how far it got (*Next page: 3 of 20 images ready*); **Pause**
+stops it too.
+
+This works when the site's pages have their image addresses in the HTML. Sites that build their pages
+with scripts show *No images found on the next page*: there, it does nothing.
 
 ### Pause, Hide and Edit
 

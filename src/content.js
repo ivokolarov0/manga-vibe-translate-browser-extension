@@ -12,6 +12,8 @@
   const OVERLAP = 0.2;       // of a piece's height, shared with the next piece
   const PREPARING = 2;       // images fetched and cut at the same time
   const STROKE = { off: "0px", thin: "0.12em", thick: "0.22em" };
+  const NEXT_PAGES = 10;     // at most this many pages followed ahead (sites with one image per page)
+  const NEXT_PRIORITY = 2;   // in the queue: after the images on screen (0) and ahead on this page (1)
 
   let sites = [];
   let settings = { ...MT.DEFAULTS };
@@ -91,6 +93,7 @@
     cancelAnimationFrame(followFrame);
     followFrame = 0;
     mo = io = ro = null;
+    stopUpcoming(true);
     items.clear();
     sweep();
     onScreen.clear();
@@ -205,7 +208,12 @@
         browser.runtime.sendMessage({ type: "bump", key: it.key }).catch(() => {});
       }
     }
+    readNext();
     watchStatus();
+  }
+
+  function byPosition(a, b) {
+    return a.img.compareDocumentPosition(b.img) & Node.DOCUMENT_POSITION_FOLLOWING ? -1 : 1;
   }
 
   /* forced: asked for in the editor, so it's translated even while paused */
@@ -301,6 +309,182 @@
     }
     bmp.close?.();
     return { w, h, tiles };
+  }
+
+  /* --- the next page: its images are translated before it's opened ---------------------------------
+     Once the reader is near the end of this page (the images ahead reach its last one), the page the
+     site's next-page link leads to is downloaded, its images are found with the site's selector and
+     they go into the queue after this page's. A site with one image per page: the links are followed
+     further, until there are as many images as "Images to translate ahead". Works when the page's
+     HTML has the image addresses; not for pages that are built by scripts. */
+
+  let upcomingGen = 0;
+  let upcoming = { url: "", gen: 0 };
+
+  /* the <a> an element is in, or holds */
+  function linkOf(el) {
+    if (!el) return null;
+    return el.closest?.("a[href]") || el.querySelector?.("a[href]") || null;
+  }
+
+  /* the next-page link in a document (this page, or one downloaded) */
+  function nextLink(selector, doc = document) {
+    let el;
+    try { el = doc.querySelector(selector); } catch { return null; }
+    return linkOf(el);
+  }
+
+  /* the address a link leads to, or "" when it isn't another web page */
+  function pageAddress(a, base = document.baseURI, from = location.href) {
+    if (!a) return "";
+    let u;
+    try { u = new URL(a.getAttribute("href"), base); } catch { return ""; }
+    if (!/^https?:$/.test(u.protocol)) return "";
+    u.hash = "";
+    const here = new URL(from);
+    here.hash = "";
+    return u.href === here.href ? "" : u.href;
+  }
+
+  async function fetchPage(url) {
+    let html;
+    try {
+      const r = await fetch(url, { credentials: "include" });
+      if (!r.ok) throw new Error(`HTTP ${r.status}`);
+      html = await r.text();
+    } catch (first) {
+      // e.g. Chrome refuses another site's page to a content script: the background asks for it
+      const got = await browser.runtime.sendMessage({ type: "fetchPage", url });
+      if (typeof got?.html !== "string") throw new Error(got?.error || first.message);
+      html = got.html;
+    }
+    const doc = new DOMParser().parseFromString(html, "text/html");
+    let base = url;
+    try { base = new URL(doc.querySelector("base[href]")?.getAttribute("href") || url, url).href; } catch { /* as it is */ }
+    return { doc, base };
+  }
+
+  /* Where an image of a downloaded page comes from. Lazy loading keeps the address in an attribute
+     of its own until the image is near the screen; then it's put into src, so it's the same address. */
+  const LAZY = ["data-src", "data-original", "data-lazy-src", "data-lazy", "data-url", "data-echo", "data-cfsrc"];
+  function imageSource(img) {
+    const ok = (v) => (v && !/^(data|blob|about|javascript):/i.test(v.trim()) ? v.trim() : "");
+    for (const a of LAZY) {
+      const v = ok(img.getAttribute(a));
+      if (v) return v;
+    }
+    const src = ok(img.getAttribute("src"));
+    if (src) return src;
+    const set = img.getAttribute("srcset") || img.getAttribute("data-srcset") || "";
+    return ok(set.split(",")[0].trim().split(/\s+/)[0]);
+  }
+
+  function pageImages(doc, base) {
+    let found;
+    try { found = doc.querySelectorAll(site.selector || "img"); } catch { return []; }
+    const out = [];
+    for (const el of found) {
+      for (const img of el.localName === "img" ? [el] : el.querySelectorAll("img")) {
+        const src = imageSource(img);
+        if (!src) continue;
+        try { out.push(new URL(src, base).href); } catch { /* not an address */ }
+      }
+    }
+    return [...new Set(out)];
+  }
+
+  /* called with every pump: starts on the next page once the reader is near the end of this one */
+  function readNext() {
+    if (paused || !site?.next) return;
+    const all = [...items.values()].filter((it) => it.img.isConnected).sort(byPosition);
+    let last = -1;
+    all.forEach((it, i) => { if (onScreen.has(it.img)) last = i; });
+    if (last < 0 || last + Math.max(0, +settings.ahead || 0) < all.length - 1) return;
+    const url = pageAddress(nextLink(site.next));
+    if (!url || url === upcoming.url) return;
+    stopUpcoming(false);  // the next page changed (a reader that changes pages without loading them)
+    upcoming = { url, gen: upcomingGen, pages: 0, total: 0, done: 0, failed: 0, error: "", keys: new Set() };
+    readUpcoming(upcoming, all.findLast((it) => it.key)?.key || "", new Set(all.map((it) => it.key)));
+  }
+
+  /* cancel: its images waiting in the queue leave it too (Pause, or not a site's page any more) */
+  function stopUpcoming(cancel) {
+    upcomingGen++;
+    const keys = [...(upcoming.keys || [])];
+    if (cancel && keys.length) browser.runtime.sendMessage({ type: "cancel", keys }).catch(() => {});
+    upcoming = { url: "", gen: upcomingGen };
+  }
+
+  async function readUpcoming(up, prevKey, here) {
+    const current = () => up.gen === upcomingGen && !paused && !!site;
+    const want = Math.max(1, +settings.ahead || 0);
+    const list = [];  // [key, the image before it]
+    const visited = new Set([location.href.replace(/#.*$/, "")]);
+    let url = up.url, from = location.href;
+    while (url && !visited.has(url) && up.pages < NEXT_PAGES && (!up.pages || list.length < want)) {
+      visited.add(url);
+      let page;
+      try {
+        page = await fetchPage(url);
+      } catch (e) {
+        up.error = `Couldn't load the next page: ${e.message || e}`;
+        break;
+      }
+      if (!current()) return;
+      up.pages++;
+      const found = pageImages(page.doc, page.base).filter((k) => !here.has(k) && !list.some(([l]) => l === k));
+      if (!found.length) break;  // e.g. the last chapter's link goes to the series page
+      for (const key of found) {
+        list.push([key, prevKey]);
+        prevKey = key;
+      }
+      from = url;
+      url = pageAddress(nextLink(site.next, page.doc), page.base, from);
+    }
+    up.total = list.length;
+    if (!list.length) {
+      up.error ||= "No images found on the next page (the site may build its pages with scripts)";
+      console.warn("Manga Translate:", up.error, up.url);
+      return;
+    }
+    let saved = {};
+    try { ({ results: saved } = await browser.runtime.sendMessage({ type: "lookup", keys: list.map(([k]) => k) })); } catch { /* reloaded */ }
+    const todo = list.filter(([k]) => !saved?.[k]);
+    up.done = list.length - todo.length;
+    const worker = async () => {
+      while (todo.length && current()) {
+        const [key, prev] = todo.shift();
+        await translateUpcoming(up, key, prev);
+      }
+    };
+    await Promise.all([worker(), worker()]);
+  }
+
+  async function translateUpcoming(up, key, prevKey) {
+    let piece;
+    try {
+      piece = await prepare(key);
+    } catch (e) {
+      up.failed++;
+      console.warn("Manga Translate: couldn't load an image of the next page:", e.message || e, key);
+      return;
+    }
+    if (up.gen !== upcomingGen || paused || !site) return;
+    const min = +site.minSize || 0;
+    if (piece.w < min * 0.5 || Math.max(piece.w, piece.h) < min) {  // an icon or an ad
+      up.total--;
+      return;
+    }
+    up.keys.add(key);
+    let answer;
+    try {
+      answer = await browser.runtime.sendMessage({ type: "translate", key, prevKey, priority: NEXT_PRIORITY, ...piece });
+    } catch (e) {
+      answer = { error: String(e.message || e) };
+    }
+    up.keys.delete(key);
+    if (answer?.result) up.done++;
+    else if (!answer?.cancelled) up.failed++;
   }
 
   /* --- drawing the English ------------------------------------------------------------------------- */
@@ -572,18 +756,53 @@
     return best?.c || "img";
   }
 
-  function startPicker() {
-    if (picker) return;
+  /* A path from the nearest element with an id (or the body) down to the element, for a link that has
+     nothing of its own to tell it apart. */
+  function cssPath(el) {
+    const parts = [];
+    for (; el && el.parentElement && el !== document.body; el = el.parentElement) {
+      if (el.id && /^[A-Za-z][\w-]*$/.test(el.id) && !/\d{3,}/.test(el.id)) return ["#" + CSS.escape(el.id), ...parts].join(" > ");
+      const same = [...el.parentElement.children].filter((c) => c.localName === el.localName);
+      parts.unshift(same.length > 1 ? `${el.localName}:nth-of-type(${same.indexOf(el) + 1})` : el.localName);
+    }
+    return ["body", ...parts].join(" > ");
+  }
+
+  /* The selector for the clicked next-page link: the first link it matches must be that one, and it
+     should still fit on the next page, so classes and rel="next" go before a path. */
+  function suggestLink(a) {
+    const candidates = [];
+    if ((a.getAttribute("rel") || "").split(/\s+/).includes("next")) candidates.push('a[rel~="next"]');
+    const own = describe(a);
+    if (own) candidates.push(own);
+    let el = a.parentElement;
+    for (let d = 0; el && el !== document.body && el !== document.documentElement && d < 6; d++) {
+      const part = describe(el);
+      if (part) candidates.push(`${part} ${own || "a"}`);
+      if (part?.startsWith("#")) break;
+      el = el.parentElement;
+    }
+    return candidates.find((c) => nextLink(c) === a) || cssPath(a);
+  }
+
+  /* mode: "images" (the manga pages) or "next" (the link to the next page or chapter) */
+  function startPicker(mode = "images") {
+    if (picker?.mode === mode) return;
+    picker?.stop();
+    const forLink = mode === "next";
     const bar = document.createElement("mt-picker");
     const msg = document.createElement("mt-msg");
     const input = document.createElement("input");
     const saveBtn = document.createElement("button");
     const cancelBtn = document.createElement("button");
-    msg.textContent = "Manga Translate: click one of the manga pages. (Esc to cancel)";
+    const intro = forLink
+      ? "Manga Translate: click the link to the next page or chapter. (Esc to cancel)"
+      : "Manga Translate: click one of the manga pages. (Esc to cancel)";
+    msg.textContent = intro;
     input.spellcheck = false;
-    input.placeholder = "CSS selector of the images";
+    input.placeholder = forLink ? "CSS selector of the next-page link" : "CSS selector of the images";
     input.hidden = true;
-    saveBtn.textContent = "Save for this site";
+    saveBtn.textContent = forLink ? "Save as the next-page link" : "Save for this site";
     saveBtn.className = "mt-primary";
     saveBtn.hidden = true;
     cancelBtn.textContent = "Cancel";
@@ -594,34 +813,50 @@
     let marked = [];
     const unmark = () => { for (const m of marked) m.removeAttribute("data-mt-match"); marked = []; };
     const unhover = () => { hovered?.removeAttribute("data-mt-hover"); hovered = null; };
-    const imageAt = (x, y) => document.elementsFromPoint(x, y)
-      .find((el) => el instanceof HTMLImageElement && !bar.contains(el));
+    const targetAt = (x, y) => (forLink
+      ? document.elementsFromPoint(x, y).map((el) => el.closest?.("a[href]")).find((a) => a && !bar.contains(a))
+      : document.elementsFromPoint(x, y).find((el) => el instanceof HTMLImageElement && !bar.contains(el)));
 
     const show = () => {
       unmark();
-      marked = bigImages(input.value.trim() || "-");
+      const selector = input.value.trim() || "-";
+      if (forLink) {
+        const a = nextLink(selector);
+        const url = pageAddress(a);
+        marked = a ? [a] : [];
+        msg.textContent = !a ? "No link matches this selector."
+          : !url ? "That link doesn't lead to another page."
+          : `Next page: ${url} (outlined). Change the selector if that's not the right link, then save.`;
+        saveBtn.disabled = !url;
+      } else {
+        marked = bigImages(selector);
+        msg.textContent = marked.length
+          ? `${marked.length} image${marked.length > 1 ? "s" : ""} match (outlined). Change the selector if that's not right, then save.`
+          : "No images match this selector.";
+        saveBtn.disabled = !marked.length;
+      }
       for (const m of marked) m.setAttribute("data-mt-match", "");
-      msg.textContent = marked.length
-        ? `${marked.length} image${marked.length > 1 ? "s" : ""} match (outlined). Change the selector if that's not right, then save.`
-        : "No images match this selector.";
-      saveBtn.disabled = !marked.length;
     };
     const onMove = (e) => {
       if (!input.hidden) return;
-      const img = imageAt(e.clientX, e.clientY);
-      if (img === hovered) return;
+      const el = targetAt(e.clientX, e.clientY);
+      if (el === hovered) return;
       unhover();
-      if (img) { hovered = img; img.setAttribute("data-mt-hover", ""); }
+      if (el) { hovered = el; el.setAttribute("data-mt-hover", ""); }
     };
     const onClick = (e) => {
       if (bar.contains(e.target)) return;
       e.preventDefault();
       e.stopImmediatePropagation();
       if (!input.hidden) return;
-      const img = imageAt(e.clientX, e.clientY);
-      if (!img) { msg.textContent = "That's not an image. Click one of the manga pages. (Esc to cancel)"; return; }
+      const el = targetAt(e.clientX, e.clientY);
+      if (!el) {
+        msg.textContent = forLink ? `That's not a link. ${intro.replace(/^Manga Translate: c/, "C")}`
+          : "That's not an image. Click one of the manga pages. (Esc to cancel)";
+        return;
+      }
       unhover();
-      input.value = suggest(img);
+      input.value = forLink ? suggestLink(el) : suggest(el);
       input.hidden = saveBtn.hidden = false;
       show();
       input.focus();
@@ -642,25 +877,28 @@
     input.addEventListener("keydown", (e) => { if (e.key === "Enter" && !saveBtn.disabled) saveBtn.click(); });
     cancelBtn.addEventListener("click", stop);
     saveBtn.addEventListener("click", async () => {
-      await saveSelector(input.value.trim());
+      const selector = input.value.trim();
+      await saveToSite(forLink ? { next: selector } : { selector });
       stop();
+      if (forLink) flash("Next-page link saved: its images are translated when you near the end of this page");
     });
     addEventListener("mousemove", onMove, true);
     addEventListener("click", onClick, true);
     for (const t of ["mousedown", "mouseup", "pointerdown", "pointerup"]) addEventListener(t, swallow, true);
     addEventListener("keydown", onKey, true);
-    picker = { stop };
+    picker = { stop, mode };
   }
 
-  async function saveSelector(selector) {
+  /* fields: { selector } or { next }, for this page's site (a new one if there's none yet) */
+  async function saveToSite(fields) {
     const got = await browser.storage.local.get("sites");
     const list = got.sites || [];
     const existing = MT.findSite(list, location.href, true);
     if (existing) {
-      existing.selector = selector;
+      Object.assign(existing, fields);
       existing.enabled = true;
     } else {
-      list.push(MT.newSite({ name: location.hostname, match: location.hostname.replace(/^www\./, ""), selector }));
+      list.push(MT.newSite({ name: location.hostname, match: location.hostname.replace(/^www\./, ""), ...fields }));
     }
     await browser.storage.local.set({ sites: list });
   }
@@ -788,6 +1026,7 @@
       // the images waiting in the queue leave it; one the PC is already on is finished
       const keys = [...items.values()].filter((it) => it.state === "working" && !it.forced).map((it) => it.key);
       if (keys.length) browser.runtime.sendMessage({ type: "cancel", keys }).catch(() => {});
+      stopUpcoming(true);  // the next page too; Resume starts it again
     }
     flash(paused ? "Translating paused on this tab" : "Translating again");
     pump();
@@ -836,7 +1075,7 @@
   MT.onMessage((msg) => {
     switch (msg.type) {
       case "pick":
-        startPicker();
+        startPicker(msg.mode === "next" ? "next" : "images");
         return Promise.resolve({});
       case "toggle":
         if (!site) return undefined;
@@ -874,6 +1113,15 @@
           done: its.filter((it) => it.state === "done").length,
           working: its.filter((it) => it.state === "working").length,
           failed: its.filter((it) => it.state === "failed").length,
+          next: site?.next ? {
+            found: !!pageAddress(nextLink(site.next)),
+            started: !!upcoming.url,
+            pages: upcoming.pages || 0,
+            total: upcoming.total || 0,
+            done: upcoming.done || 0,
+            failed: upcoming.failed || 0,
+            error: upcoming.error || "",
+          } : null,
         });
       }
       default:
@@ -886,6 +1134,7 @@
     if (changes.sites) {
       sites = changes.sites.newValue || [];
       evaluate();
+      if (site) pump();  // e.g. a next-page link was just set
     }
     if (changes.settings) {
       const old = settings;

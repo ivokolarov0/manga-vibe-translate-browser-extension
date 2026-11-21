@@ -26,7 +26,9 @@ var MT = (() => {
     ["edit", "Edit", "Edit the translation of the image on screen"],
   ];
 
-  const SITE_DEFAULTS = { name: "", match: "", selector: "img", minSize: 300, enabled: true };
+  /* next: the CSS selector of the link to the next page or chapter ("": none). Its images are
+     translated in the background before it's opened. */
+  const SITE_DEFAULTS = { name: "", match: "", selector: "img", next: "", minSize: 300, enabled: true };
 
   function withDefaults(s) {
     return { ...DEFAULTS, ...(s || {}) };

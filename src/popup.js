@@ -48,12 +48,27 @@ async function render() {
     : `${info.done} of ${info.images} images translated`
       + (info.working ? ` · ${info.working} working` : "") + (info.failed ? ` · ${info.failed} failed` : "")
       + (info.paused ? " · paused on this tab" : "");
+  $("next").textContent = nextText(info.next);
+  $("pick-next").textContent = site.next ? "Pick next-page link again" : "Pick next-page link";
   // the keys on this site (Settings → Keys, or the site's own)
   const parts = MT.KEY_ACTIONS.filter(([a]) => info.keys?.[a]).map(([a, label]) => `${info.keys[a]} ${label.toLowerCase()}`);
   $("keys").textContent = parts.length ? `Keys here: ${parts.join(" · ")}` : "No keys set: Settings → Keys";
 
   const s = await browser.runtime.sendMessage({ type: "status" });
   $("queue").textContent = s.offline || (s.waiting ? `Queue: ${s.waiting}` : "");
+}
+
+/* what's known about the next page (null: no next-page link set for the site) */
+function nextText(n) {
+  if (!n) return "Next page: no link set. Pick it, and the next page's images are translated before you open it.";
+  if (!n.started) {
+    return n.found ? "Next page: its images are translated when you near the end of this page"
+      : "Next page: the link isn't on this page";
+  }
+  if (n.error) return `Next page: ${n.error}`;
+  if (!n.total) return "Next page: looking for its images…";
+  const pages = n.pages > 1 ? ` (${n.pages} pages)` : "";
+  return `Next page${pages}: ${n.done} of ${n.total} images ready` + (n.failed ? ` · ${n.failed} failed` : "");
 }
 
 async function saveSites() {
@@ -81,6 +96,11 @@ $("pick-new").onclick = async () => {
 };
 
 $("pick").onclick = $("pick-new").onclick;
+
+$("pick-next").onclick = async () => {
+  await send({ type: "pick", mode: "next" });
+  window.close();
+};
 
 $("toggle").onclick = async () => {
   const r = await send({ type: "toggle" });

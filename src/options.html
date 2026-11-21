@@ -23,6 +23,8 @@
     .key select { width: auto; }
     .warn { color: var(--bad); }
     /* a site's own keys, under its row */
+    .site .site-next { grid-column: 1 / 4; }
+    @media (max-width: 720px) { .site .site-next { grid-column: 1 / -1; } }
     .site-keys { grid-column: 1 / -1; font-size: 13px; }
     .site-keys summary { cursor: pointer; color: var(--muted); }
     .site-keys .grid { margin-top: 8px; }
@@ -58,7 +60,10 @@
       on the site, click the extension's button and <b>Pick on the page</b>.<br>
       <b>Pages:</b> a domain like <code>example.com</code> (every page on it), or a pattern like
       <code>https://example.com/chapter/*</code>. <b>Images:</b> a CSS selector, e.g.
-      <code>#reader img</code>. <b>Min size:</b> smaller images (icons, ads) are skipped.</p>
+      <code>#reader img</code>. <b>Min size:</b> smaller images (icons, ads) are skipped.
+      <b>Next page link:</b> a CSS selector of the link to the next page or chapter (the extension's
+      button → <b>Pick next-page link</b> finds it): near the end of a page, the next one's images are
+      translated in the background.</p>
     <div id="sites"></div>
     <div class="row" style="margin-top:10px"><button id="add-site">Add a site</button></div>
   </section>
@@ -131,6 +136,8 @@
       <label class="row" style="margin:0" title="Translate on this site"><input type="checkbox" data-f="enabled"> On</label>
       <button class="danger" data-delete title="Remove this site">✕</button>
     </div>
+    <label class="site-next"><span>Next page link (optional)</span><input data-f="next" spellcheck="false" placeholder="e.g. a.next-chapter">
+      <small>Its images are translated before you open it</small></label>
     <details class="site-keys"><summary data-keys-summary>Keys</summary><div class="grid" data-keys></div></details>
   </div>
 </template>
